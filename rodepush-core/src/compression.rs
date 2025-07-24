@@ -1,5 +1,5 @@
-use crate::{Result, BundleError};
 use crate::bundle::CompressionType;
+use crate::{BundleError, Result};
 use std::io::{Read, Write};
 
 /// Compression statistics for performance monitoring
@@ -54,7 +54,7 @@ impl CompressionStats {
 pub trait Compressor: Send + Sync {
     /// Compress data with a given quality/level
     fn compress(&self, data: &[u8], level: i32) -> Result<Vec<u8>>;
-    
+
     /// Decompress data
     fn decompress(&self, data: &[u8]) -> Result<Vec<u8>>;
 
@@ -62,18 +62,14 @@ pub trait Compressor: Send + Sync {
     fn compress_with_stats(&self, data: &[u8], level: i32) -> Result<(Vec<u8>, CompressionStats)> {
         let start = std::time::Instant::now();
         let original_size = data.len() as u64;
-        
+
         let compressed = self.compress(data, level)?;
         let compression_time_ms = start.elapsed().as_millis() as u64;
         let compressed_size = compressed.len() as u64;
-        
-        let stats = CompressionStats::new(
-            original_size,
-            compressed_size,
-            compression_time_ms,
-            level,
-        );
-        
+
+        let stats =
+            CompressionStats::new(original_size, compressed_size, compression_time_ms, level);
+
         Ok((compressed, stats))
     }
 
@@ -105,14 +101,13 @@ impl ZstdCompressor {
     /// Validate compression level for Zstd
     fn validate_level(&self, level: i32) -> Result<i32> {
         if level < self.min_level() || level > self.max_level() {
-            return Err(BundleError::compression_failed(
-                format!(
-                    "Invalid Zstd compression level {}. Valid range: {}-{}",
-                    level,
-                    self.min_level(),
-                    self.max_level()
-                )
-            ).into());
+            return Err(BundleError::compression_failed(format!(
+                "Invalid Zstd compression level {}. Valid range: {}-{}",
+                level,
+                self.min_level(),
+                self.max_level()
+            ))
+            .into());
         }
         Ok(level)
     }
@@ -121,14 +116,18 @@ impl ZstdCompressor {
 impl Compressor for ZstdCompressor {
     fn compress(&self, data: &[u8], level: i32) -> Result<Vec<u8>> {
         let validated_level = self.validate_level(level)?;
-        
+
         zstd::stream::encode_all(data, validated_level)
             .map_err(|e| BundleError::compression_failed(e.to_string()).into())
     }
 
     fn decompress(&self, data: &[u8]) -> Result<Vec<u8>> {
-        zstd::stream::decode_all(data)
-            .map_err(|e| BundleError::DecompressionFailed { message: e.to_string() }.into())
+        zstd::stream::decode_all(data).map_err(|e| {
+            BundleError::DecompressionFailed {
+                message: e.to_string(),
+            }
+            .into()
+        })
     }
 
     fn default_level(&self) -> i32 {
@@ -188,18 +187,20 @@ impl CompressionUtil {
         let compressor: Box<dyn Compressor> = match compression_type {
             CompressionType::None => Box::new(NoneCompressor::new()),
             CompressionType::Zstd => Box::new(ZstdCompressor::new()),
-            CompressionType::Gzip => {
-                return Self::unsupported_compression_type("Gzip")
-            },
-            CompressionType::Brotli => {
-                return Self::unsupported_compression_type("Brotli")
-            },
+            CompressionType::Gzip => return Self::unsupported_compression_type("Gzip"),
+            CompressionType::Brotli => return Self::unsupported_compression_type("Brotli"),
         };
-        Self { compressor, compression_type }
+        Self {
+            compressor,
+            compression_type,
+        }
     }
 
     fn unsupported_compression_type(name: &str) -> Self {
-        panic!("{} compression is not yet implemented. Currently supported: None, Zstd", name);
+        panic!(
+            "{} compression is not yet implemented. Currently supported: None, Zstd",
+            name
+        );
     }
 
     /// Get the compression type
@@ -219,7 +220,11 @@ impl CompressionUtil {
     }
 
     /// Compress data with timing statistics
-    pub fn compress_with_stats(&self, data: &[u8], level: Option<i32>) -> Result<(Vec<u8>, CompressionStats)> {
+    pub fn compress_with_stats(
+        &self,
+        data: &[u8],
+        level: Option<i32>,
+    ) -> Result<(Vec<u8>, CompressionStats)> {
         let compression_level = level.unwrap_or_else(|| self.compressor.default_level());
         self.compressor.compress_with_stats(data, compression_level)
     }
@@ -229,26 +234,28 @@ impl CompressionUtil {
         &self,
         data: &[u8],
         writer: W,
-        level: Option<i32>
+        level: Option<i32>,
     ) -> Result<u64> {
         let compressed = self.compress(data, level)?;
         let bytes_written = compressed.len() as u64;
-        
+
         let mut writer = writer;
-        writer.write_all(&compressed)
+        writer
+            .write_all(&compressed)
             .map_err(|e| BundleError::compression_failed(format!("Write failed: {}", e)))?;
-        
+
         Ok(bytes_written)
     }
 
     /// Decompress data from a reader
     pub fn decompress_from_reader<R: Read>(&self, mut reader: R) -> Result<Vec<u8>> {
         let mut compressed_data = Vec::new();
-        reader.read_to_end(&mut compressed_data)
-            .map_err(|e| BundleError::DecompressionFailed { 
-                message: format!("Read failed: {}", e) 
+        reader
+            .read_to_end(&mut compressed_data)
+            .map_err(|e| BundleError::DecompressionFailed {
+                message: format!("Read failed: {}", e),
             })?;
-        
+
         self.decompress(&compressed_data)
     }
 
@@ -265,18 +272,18 @@ impl CompressionUtil {
     /// Test compression effectiveness for given data
     pub fn test_compression(&self, data: &[u8], levels: Vec<i32>) -> Result<Vec<CompressionStats>> {
         let mut results = Vec::new();
-        
+
         for level in levels {
             if level < self.compressor.min_level() || level > self.compressor.max_level() {
                 continue;
             }
-            
+
             match self.compress_with_stats(data, Some(level)) {
                 Ok((_, stats)) => results.push(stats),
                 Err(_) => continue,
             }
         }
-        
+
         Ok(results)
     }
 }
@@ -315,24 +322,24 @@ mod tests {
         assert_eq!(original_data, decompressed_data);
 
         // Test compression with stats
-        let (compressed_with_stats, stats) = compressor.compress_with_stats(&original_data, 3).unwrap();
+        let (compressed_with_stats, stats) =
+            compressor.compress_with_stats(&original_data, 3).unwrap();
         assert_eq!(compressed_data, compressed_with_stats);
         assert_eq!(stats.original_size, original_data.len() as u64);
         assert_eq!(stats.compressed_size, compressed_data.len() as u64);
         assert_eq!(stats.level, 3);
         // Compression time can be 0 for small data on fast machines
-        assert!(stats.compression_time_ms >= 0);
     }
 
     #[test]
     fn test_zstd_validation() {
         let compressor = ZstdCompressor::new();
-        
+
         // Test valid compression levels
         assert!(compressor.compress(b"test", 1).is_ok());
         assert!(compressor.compress(b"test", 3).is_ok());
         assert!(compressor.compress(b"test", 22).is_ok());
-        
+
         // Test invalid compression levels
         assert!(compressor.compress(b"test", 0).is_err());
         assert!(compressor.compress(b"test", 23).is_err());
@@ -360,7 +367,8 @@ mod tests {
         assert_eq!(original_data, decompressed.as_slice());
 
         // Test that stats work
-        let (compressed_with_stats, stats) = compressor.compress_with_stats(original_data, 0).unwrap();
+        let (compressed_with_stats, stats) =
+            compressor.compress_with_stats(original_data, 0).unwrap();
         assert_eq!(compressed, compressed_with_stats);
         assert_eq!(stats.ratio, 1.0);
         assert_eq!(stats.space_savings_percent(), 0.0);
@@ -386,7 +394,6 @@ mod tests {
         let decompressed_stats = util.decompress(&compressed_stats).unwrap();
         assert_eq!(original_data.to_vec(), decompressed_stats);
         assert_eq!(stats.level, 7);
-        assert!(stats.compression_time_ms >= 0);
     }
 
     #[test]
@@ -404,10 +411,10 @@ mod tests {
     #[test]
     fn test_compression_util_properties() {
         let util = CompressionUtil::new(CompressionType::Zstd);
-        
+
         assert_eq!(util.compression_type(), CompressionType::Zstd);
         assert_eq!(util.default_level(), 3);
-        
+
         let (min, max) = util.level_range();
         assert_eq!(min, 1);
         assert_eq!(max, 22);
@@ -420,7 +427,9 @@ mod tests {
 
         // Test compression to writer
         let mut writer = Vec::new();
-        let bytes_written = util.compress_to_writer(original_data, &mut writer, Some(3)).unwrap();
+        let bytes_written = util
+            .compress_to_writer(original_data, &mut writer, Some(3))
+            .unwrap();
         assert!(bytes_written > 0);
         assert_eq!(writer.len(), bytes_written as usize);
 
@@ -434,12 +443,12 @@ mod tests {
     fn test_compression_effectiveness_test() {
         let util = CompressionUtil::new(CompressionType::Zstd);
         let test_data = b"This is repetitive test data. This is repetitive test data. This is repetitive test data.".repeat(10);
-        
+
         let test_levels = vec![1, 3, 6, 9];
         let results = util.test_compression(&test_data, test_levels).unwrap();
-        
+
         assert_eq!(results.len(), 4);
-        
+
         // Verify that higher compression levels generally produce better ratios
         for result in results {
             assert!(result.ratio < 1.0); // Should achieve some compression
@@ -451,10 +460,10 @@ mod tests {
     fn test_compression_util_clone() {
         let util1 = CompressionUtil::new(CompressionType::Zstd);
         let util2 = util1.clone();
-        
+
         assert_eq!(util1.compression_type(), util2.compression_type());
         assert_eq!(util1.default_level(), util2.default_level());
-        
+
         let test_data = b"Test cloning functionality";
         let compressed1 = util1.compress(test_data, None).unwrap();
         let compressed2 = util2.compress(test_data, None).unwrap();

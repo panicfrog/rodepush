@@ -13,7 +13,8 @@ pub use compression::{
 };
 pub use bundle::{
     Bundle, BundleId, BundleMetadata, BundleChunk, ChunkMetadata, 
-    SemanticVersion, Platform, CompressionType, Dependency
+    SemanticVersion, Platform, CompressionType, Dependency,
+    BundleBuilder
 };
 pub use crypto::{
     HashAlgorithm, Hasher, Sha256Hasher, Blake3Hasher, 
@@ -21,3 +22,4 @@ pub use crypto::{
     generate_file_checksum_with_progress, generate_multiple_file_checksums,
     validate_hash_format, BulkHasher, ProgressCallback
 };
+pub use diff::{DiffEngine, DiffResult};

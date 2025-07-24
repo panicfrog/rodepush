@@ -1,14 +1,13 @@
-use serde::{Deserialize, Serialize};
-use crate::{Result, BundleError, CompressionUtil, crypto, compression};
-use std::fs::{self, File};
-use std::io::{self, Read, Write, Seek, SeekFrom};
-use std::path::{Path, PathBuf};
+use crate::{BundleError, Result, crypto};
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use std::io::Write;
 use uuid::Uuid;
 
+#[allow(dead_code)]
 const BUNDLE_MAGIC: &[u8] = b"RDPUSHB";
+#[allow(dead_code)]
 const BUNDLE_FORMAT_VERSION: u16 = 1;
-
 
 /// Unique identifier for a bundle
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -109,9 +108,10 @@ impl SemanticVersion {
         } else if parts.len() == 1 {
             (parts[0], None)
         } else {
-            return Err(BundleError::InvalidVersion { 
-                version: s.to_string() 
-            }.into());
+            return Err(BundleError::InvalidVersion {
+                version: s.to_string(),
+            }
+            .into());
         };
 
         let parts: Vec<&str> = version_part.split('-').collect();
@@ -120,24 +120,35 @@ impl SemanticVersion {
         } else if parts.len() == 1 {
             (parts[0], None)
         } else {
-            return Err(BundleError::InvalidVersion { 
-                version: s.to_string() 
-            }.into());
+            return Err(BundleError::InvalidVersion {
+                version: s.to_string(),
+            }
+            .into());
         };
 
         let version_parts: Vec<&str> = core_version.split('.').collect();
         if version_parts.len() != 3 {
-            return Err(BundleError::InvalidVersion { 
-                version: s.to_string() 
-            }.into());
+            return Err(BundleError::InvalidVersion {
+                version: s.to_string(),
+            }
+            .into());
         }
 
-        let major = version_parts[0].parse::<u32>()
-            .map_err(|_| BundleError::InvalidVersion { version: s.to_string() })?;
-        let minor = version_parts[1].parse::<u32>()
-            .map_err(|_| BundleError::InvalidVersion { version: s.to_string() })?;
-        let patch = version_parts[2].parse::<u32>()
-            .map_err(|_| BundleError::InvalidVersion { version: s.to_string() })?;
+        let major = version_parts[0]
+            .parse::<u32>()
+            .map_err(|_| BundleError::InvalidVersion {
+                version: s.to_string(),
+            })?;
+        let minor = version_parts[1]
+            .parse::<u32>()
+            .map_err(|_| BundleError::InvalidVersion {
+                version: s.to_string(),
+            })?;
+        let patch = version_parts[2]
+            .parse::<u32>()
+            .map_err(|_| BundleError::InvalidVersion {
+                version: s.to_string(),
+            })?;
 
         Ok(Self {
             major,
@@ -222,7 +233,7 @@ impl std::fmt::Display for Platform {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Platform::Ios => write!(f, "ios"),
-            Platform::Android => write!(f, "android"), 
+            Platform::Android => write!(f, "android"),
             Platform::Both => write!(f, "both"),
         }
     }
@@ -236,9 +247,10 @@ impl std::str::FromStr for Platform {
             "ios" => Ok(Platform::Ios),
             "android" => Ok(Platform::Android),
             "both" => Ok(Platform::Both),
-            _ => Err(BundleError::UnsupportedPlatform { 
-                platform: s.to_string() 
-            }.into()),
+            _ => Err(BundleError::UnsupportedPlatform {
+                platform: s.to_string(),
+            }
+            .into()),
         }
     }
 }
@@ -351,8 +363,9 @@ impl ChunkMetadata {
 
         if self.original_size < self.size {
             return Err(BundleError::chunk_error(
-                "Original size cannot be less than compressed size"
-            ).into());
+                "Original size cannot be less than compressed size",
+            )
+            .into());
         }
 
         Ok(())
@@ -394,11 +407,7 @@ pub struct BundleMetadata {
 
 impl BundleMetadata {
     /// Create new bundle metadata
-    pub fn new(
-        version: SemanticVersion,
-        platform: Platform,
-        entry_point: String,
-    ) -> Self {
+    pub fn new(version: SemanticVersion, platform: Platform, entry_point: String) -> Self {
         Self {
             id: BundleId::new(),
             version,
@@ -453,9 +462,9 @@ impl BundleMetadata {
         let mut chunk_ids = std::collections::HashSet::new();
         for chunk in &self.chunks {
             if !chunk_ids.insert(chunk.id.clone()) {
-                return Err(BundleError::chunk_error(
-                    format!("Duplicate chunk ID: {}", chunk.id)
-                ).into());
+                return Err(
+                    BundleError::chunk_error(format!("Duplicate chunk ID: {}", chunk.id)).into(),
+                );
             }
         }
 
@@ -509,13 +518,12 @@ impl BundleChunk {
         self.metadata.validate()?;
 
         if self.data.len() != self.metadata.size as usize {
-            return Err(BundleError::chunk_error(
-                format!(
-                    "Chunk data size {} does not match metadata size {}",
-                    self.data.len(),
-                    self.metadata.size
-                )
-            ).into());
+            return Err(BundleError::chunk_error(format!(
+                "Chunk data size {} does not match metadata size {}",
+                self.data.len(),
+                self.metadata.size
+            ))
+            .into());
         }
 
         Ok(())
@@ -534,6 +542,134 @@ impl BundleChunk {
     /// Get chunk ID
     pub fn id(&self) -> &str {
         &self.metadata.id
+    }
+}
+
+/// Builder for creating bundles
+#[derive(Debug)]
+pub struct BundleBuilder {
+    metadata: BundleMetadata,
+    chunks: Vec<BundleChunk>,
+    compression_type: CompressionType,
+    hash_algorithm: crypto::HashAlgorithm,
+}
+
+impl BundleBuilder {
+    /// Create a new bundle builder
+    pub fn new(version: SemanticVersion, platform: Platform, entry_point: String) -> Self {
+        let metadata = BundleMetadata::new(version, platform, entry_point);
+        Self {
+            metadata,
+            chunks: Vec::new(),
+            compression_type: CompressionType::default(),
+            hash_algorithm: crypto::HashAlgorithm::Sha256,
+        }
+    }
+
+    /// Set compression type for the bundle
+    pub fn with_compression(mut self, compression: CompressionType) -> Self {
+        self.compression_type = compression;
+        self
+    }
+
+    /// Set hash algorithm for the bundle
+    pub fn with_hash_algorithm(mut self, algorithm: crypto::HashAlgorithm) -> Self {
+        self.hash_algorithm = algorithm;
+        self
+    }
+
+    /// Add a chunk from data
+    pub fn add_chunk_from_data(&mut self, data: &[u8], chunk_id: String) -> Result<()> {
+        let original_size = data.len() as u64;
+
+        // Compress the data
+        let compressed_data = match self.compression_type {
+            CompressionType::None => data.to_vec(),
+            CompressionType::Zstd => {
+                let mut compressed = Vec::new();
+                zstd::stream::copy_encode(data, &mut compressed, 3).map_err(|e| {
+                    BundleError::compression_failed(format!("Zstd compression failed: {}", e))
+                })?;
+                compressed
+            }
+            CompressionType::Gzip => {
+                let mut compressed = Vec::new();
+                let mut encoder =
+                    flate2::write::GzEncoder::new(&mut compressed, flate2::Compression::default());
+                encoder.write_all(data).map_err(|e| {
+                    BundleError::compression_failed(format!("Gzip compression failed: {}", e))
+                })?;
+                encoder.finish().map_err(|e| {
+                    BundleError::compression_failed(format!("Gzip compression failed: {}", e))
+                })?;
+                compressed
+            }
+            CompressionType::Brotli => {
+                let mut compressed = Vec::new();
+                {
+                    let mut encoder = brotli::CompressorWriter::new(&mut compressed, 4096, 11, 22);
+                    encoder.write_all(data).map_err(|e| {
+                        BundleError::compression_failed(format!("Brotli compression failed: {}", e))
+                    })?;
+                    encoder.flush().map_err(|e| {
+                        BundleError::compression_failed(format!("Brotli compression failed: {}", e))
+                    })?;
+                } // encoder is dropped here
+                compressed
+            }
+        };
+
+        // Generate checksum
+        let hasher = crypto::BulkHasher::new(self.hash_algorithm);
+        let checksum = hasher.hash_data(&compressed_data);
+
+        // Create chunk metadata
+        let chunk_metadata = ChunkMetadata::new(
+            chunk_id,
+            self.metadata.size_bytes, // offset
+            compressed_data.len() as u64,
+            checksum,
+            self.compression_type,
+            original_size,
+            Some(3), // compression level
+        );
+
+        // Create bundle chunk
+        let chunk = BundleChunk::new(chunk_metadata, compressed_data);
+
+        // Add to builder
+        self.chunks.push(chunk);
+
+        Ok(())
+    }
+
+    /// Build the final bundle
+    pub fn build(mut self) -> Result<Bundle> {
+        // Add all chunks to metadata
+        for chunk in &self.chunks {
+            self.metadata.add_chunk(chunk.metadata.clone())?;
+        }
+
+        // Generate final bundle checksum
+        let all_data: Vec<u8> = self
+            .chunks
+            .iter()
+            .flat_map(|chunk| chunk.data.iter())
+            .cloned()
+            .collect();
+
+        let hasher = crypto::BulkHasher::new(self.hash_algorithm);
+        self.metadata.checksum = hasher.hash_data(&all_data);
+        self.metadata.compression_type = Some(self.compression_type);
+        self.metadata.hash_algorithm = Some(self.hash_algorithm);
+
+        let bundle = Bundle {
+            metadata: self.metadata,
+            chunks: self.chunks,
+        };
+
+        bundle.validate()?;
+        Ok(bundle)
     }
 }
 
@@ -558,13 +694,13 @@ impl Bundle {
     /// Add a chunk to the bundle
     pub fn add_chunk(&mut self, chunk: BundleChunk) -> Result<()> {
         chunk.validate()?;
-        
+
         // Add chunk metadata to bundle metadata
         self.metadata.add_chunk(chunk.metadata.clone())?;
-        
+
         // Add chunk to chunks list
         self.chunks.push(chunk);
-        
+
         Ok(())
     }
 
@@ -604,8 +740,9 @@ impl Bundle {
 
         if self.chunks.len() != self.metadata.chunks.len() {
             return Err(BundleError::invalid_format(
-                "Chunk count mismatch between metadata and actual chunks"
-            ).into());
+                "Chunk count mismatch between metadata and actual chunks",
+            )
+            .into());
         }
 
         // Validate all chunks
@@ -617,23 +754,26 @@ impl Bundle {
         for (i, chunk) in self.chunks.iter().enumerate() {
             let metadata_chunk = &self.metadata.chunks[i];
             if chunk.metadata.id != metadata_chunk.id {
-                return Err(BundleError::invalid_format(
-                    format!(
-                        "Chunk metadata mismatch at index {}: {} vs {}",
-                        i, chunk.metadata.id, metadata_chunk.id
-                    )
-                ).into());
+                return Err(BundleError::invalid_format(format!(
+                    "Chunk metadata mismatch at index {}: {} vs {}",
+                    i, chunk.metadata.id, metadata_chunk.id
+                ))
+                .into());
             }
         }
 
         Ok(())
     }
 
-    
     /// Check if this bundle is compatible with another for differential updates
     pub fn is_compatible_with(&self, other: &Bundle) -> bool {
-        self.metadata.platform.is_compatible_with(other.metadata.platform) &&
-        self.metadata.version.is_compatible_with(&other.metadata.version)
+        self.metadata
+            .platform
+            .is_compatible_with(other.metadata.platform)
+            && self
+                .metadata
+                .version
+                .is_compatible_with(&other.metadata.version)
     }
 }
 
@@ -719,11 +859,7 @@ mod tests {
     #[test]
     fn test_bundle_metadata() {
         let version = SemanticVersion::new(1, 0, 0);
-        let mut metadata = BundleMetadata::new(
-            version,
-            Platform::Ios,
-            "index.js".to_string(),
-        );
+        let mut metadata = BundleMetadata::new(version, Platform::Ios, "index.js".to_string());
 
         let chunk = ChunkMetadata::new(
             "chunk1".to_string(),
