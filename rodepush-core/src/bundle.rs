@@ -1,8 +1,14 @@
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use crate::{Result, BundleError, CompressionUtil, crypto, compression};
+use std::fs::{self, File};
+use std::io::{self, Read, Write, Seek, SeekFrom};
+use std::path::{Path, PathBuf};
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
-use crate::{Result, BundleError};
+
+const BUNDLE_MAGIC: &[u8] = b"RDPUSHB";
+const BUNDLE_FORMAT_VERSION: u16 = 1;
+
 
 /// Unique identifier for a bundle
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -293,6 +299,9 @@ pub struct ChunkMetadata {
     pub compression: CompressionType,
     /// Original size before compression
     pub original_size: u64,
+    /// Compression level used for this chunk
+    #[serde(default)]
+    pub compression_level: Option<i32>,
 }
 
 impl ChunkMetadata {
@@ -304,6 +313,7 @@ impl ChunkMetadata {
         checksum: String,
         compression: CompressionType,
         original_size: u64,
+        compression_level: Option<i32>,
     ) -> Self {
         Self {
             id,
@@ -312,6 +322,7 @@ impl ChunkMetadata {
             checksum,
             compression,
             original_size,
+            compression_level,
         }
     }
 
@@ -373,6 +384,12 @@ pub struct BundleMetadata {
     pub format_version: String,
     /// Additional custom metadata
     pub custom_metadata: std::collections::HashMap<String, serde_json::Value>,
+    /// Compression type used for all chunks, if uniform
+    #[serde(default)]
+    pub compression_type: Option<CompressionType>,
+    /// Hash algorithm used for all checksums
+    #[serde(default)]
+    pub hash_algorithm: Option<crypto::HashAlgorithm>,
 }
 
 impl BundleMetadata {
@@ -394,6 +411,8 @@ impl BundleMetadata {
             entry_point,
             format_version: "1.0".to_string(),
             custom_metadata: std::collections::HashMap::new(),
+            compression_type: None,
+            hash_algorithm: None,
         }
     }
 
@@ -610,21 +629,7 @@ impl Bundle {
         Ok(())
     }
 
-    /// Create bundle from file path
-    pub fn from_file(file_path: PathBuf, platform: Platform, version: SemanticVersion) -> Result<Self> {
-        let _file_data = std::fs::read(&file_path)
-            .map_err(|e| BundleError::invalid_format(format!("Failed to read bundle file: {}", e)))?;
-
-        let entry_point = file_path
-            .file_name()
-            .and_then(|n| n.to_str())
-            .ok_or_else(|| BundleError::invalid_format("Invalid file path"))?
-            .to_string();
-
-        let metadata = BundleMetadata::new(version, platform, entry_point);
-        Ok(Self::new(metadata))
-    }
-
+    
     /// Check if this bundle is compatible with another for differential updates
     pub fn is_compatible_with(&self, other: &Bundle) -> bool {
         self.metadata.platform.is_compatible_with(other.metadata.platform) &&
@@ -693,6 +698,7 @@ mod tests {
             "checksum123".to_string(),
             CompressionType::Zstd,
             150,
+            Some(3),
         );
 
         assert!(chunk.validate().is_ok());
@@ -705,6 +711,7 @@ mod tests {
             "checksum".to_string(),
             CompressionType::None,
             150,
+            None,
         );
         assert!(invalid_chunk.validate().is_err());
     }
@@ -725,6 +732,7 @@ mod tests {
             "checksum123".to_string(),
             CompressionType::Zstd,
             150,
+            Some(3),
         );
 
         metadata.add_chunk(chunk).unwrap();
