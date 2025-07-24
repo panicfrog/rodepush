@@ -1,0 +1,66 @@
+[workspace]
+members = [
+    "rodepush-core",
+    "rodepush-cli", 
+    "rodepush-server"
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2024"
+rust-version = "1.88.0"
+authors = ["RodePush Team"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/rodepush/rodepush"
+
+[workspace.dependencies]
+# Async runtime and utilities
+tokio = { version = "1.0", features = ["full"] }
+futures = "0.3"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+toml = "0.8"
+
+# Error handling
+thiserror = "1.0"
+anyhow = "1.0"
+
+# UUID and time
+uuid = { version = "1.0", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+
+# Crypto and hashing
+sha2 = "0.10"
+blake3 = "1.5"
+
+# Compression
+zstd = "0.13"
+
+# Logging and tracing
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+tracing-futures = "0.2"
+
+# CLI (for rodepush-cli)
+clap = { version = "4.0", features = ["derive"] }
+indicatif = "0.17"
+
+# HTTP server (for rodepush-server)
+axum = "0.7"
+tower = "0.4"
+tower-http = { version = "0.5", features = ["trace", "cors"] }
+
+# HTTP client (for rodepush-cli)
+reqwest = { version = "0.11", features = ["json", "stream"] }
+
+# Database (for rodepush-server)
+sqlx = { version = "0.7", features = ["postgres", "uuid", "chrono", "runtime-tokio-rustls"] }
+
+# Cache (for rodepush-server)
+redis = { version = "0.24", features = ["tokio-comp"] }
+
+# Testing
+tempfile = "3.0"
+mockall = "0.12"
