@@ -19,6 +19,7 @@ RodePush is a React Native CodePush solution built with Rust, designed to provid
 6. System SHALL expose a stable API for both CLI and server components
 7. System SHALL handle bundle format validation
 8. System SHALL provide error handling utilities with standardized error types
+9. System SHALL provide asset management for React Native resources including diff and compression
 
 ### 2. CLI Tool (rodepush-cli)
 

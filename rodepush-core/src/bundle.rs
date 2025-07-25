@@ -1,7 +1,9 @@
 use crate::{BundleError, Result, crypto};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::io::Write;
+use std::sync::Mutex;
 use uuid::Uuid;
 
 #[allow(dead_code)]
@@ -499,7 +501,7 @@ impl BundleMetadata {
 }
 
 /// Individual chunk of a bundle
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct BundleChunk {
     /// Chunk metadata
     pub metadata: ChunkMetadata,
@@ -674,7 +676,7 @@ impl BundleBuilder {
 }
 
 /// Complete bundle representation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Bundle {
     /// Bundle metadata
     pub metadata: BundleMetadata,
@@ -919,5 +921,130 @@ mod tests {
 
         assert!(bundle1.is_compatible_with(&bundle2));
         assert!(!bundle1.is_compatible_with(&bundle3));
+    }
+}
+
+/// Bundle cache for in-memory storage of frequently accessed bundles
+pub struct BundleCache {
+    cache: Mutex<HashMap<BundleId, Bundle>>,
+    max_size: usize,
+}
+
+impl BundleCache {
+    /// Create a new bundle cache with the specified maximum size
+    pub fn new(max_size: usize) -> Self {
+        Self {
+            cache: Mutex::new(HashMap::new()),
+            max_size,
+        }
+    }
+
+    /// Get a bundle from cache by ID
+    pub fn get(&self, id: &BundleId) -> Option<Bundle> {
+        self.cache.lock().unwrap().get(id).cloned()
+    }
+
+    /// Store a bundle in cache
+    pub fn put(&self, bundle: Bundle) {
+        let mut cache = self.cache.lock().unwrap();
+
+        // If cache size is 0, don't store anything
+        if self.max_size == 0 {
+            return;
+        }
+
+        // If cache is full, remove oldest entry (simple LRU-like behavior)
+        if cache.len() >= self.max_size {
+            if let Some((oldest_id, _)) = cache.iter().next() {
+                let oldest_id = oldest_id.clone();
+                let _ = cache.remove(&oldest_id);
+            }
+        }
+
+        cache.insert(bundle.id().clone(), bundle);
+    }
+
+    /// Remove a bundle from cache
+    pub fn remove(&self, id: &BundleId) -> Option<Bundle> {
+        self.cache.lock().unwrap().remove(id)
+    }
+
+    /// Clear all entries from cache
+    pub fn clear(&self) {
+        self.cache.lock().unwrap().clear();
+    }
+
+    /// Get cache statistics
+    pub fn stats(&self) -> BundleCacheStats {
+        let cache = self.cache.lock().unwrap();
+        BundleCacheStats {
+            size: cache.len(),
+            max_size: self.max_size,
+            utilization: cache.len() as f64 / self.max_size as f64,
+        }
+    }
+}
+
+/// Statistics for bundle cache
+#[derive(Debug, Clone)]
+pub struct BundleCacheStats {
+    pub size: usize,
+    pub max_size: usize,
+    pub utilization: f64,
+}
+
+impl Default for BundleCache {
+    fn default() -> Self {
+        Self::new(100) // Default cache size of 100 bundles
+    }
+}
+
+#[cfg(test)]
+mod cache_tests {
+    use super::*;
+
+    #[test]
+    fn test_bundle_cache() {
+        let cache = BundleCache::new(2);
+
+        // Create test bundles
+        let bundle1 = Bundle::new(BundleMetadata::new(
+            SemanticVersion::new(1, 0, 0),
+            Platform::Ios,
+            "index.js".to_string(),
+        ));
+        let bundle2 = Bundle::new(BundleMetadata::new(
+            SemanticVersion::new(1, 0, 1),
+            Platform::Android,
+            "index.js".to_string(),
+        ));
+
+        // Test put and get
+        cache.put(bundle1.clone());
+        assert_eq!(cache.get(&bundle1.id()), Some(bundle1.clone()));
+
+        // Test cache stats
+        let stats = cache.stats();
+        assert_eq!(stats.size, 1);
+        assert_eq!(stats.max_size, 2);
+        assert_eq!(stats.utilization, 0.5);
+
+        // Test cache eviction
+        cache.put(bundle2.clone());
+        cache.put(Bundle::new(BundleMetadata::new(
+            SemanticVersion::new(1, 0, 2),
+            Platform::Both,
+            "index.js".to_string(),
+        )));
+
+        // One of the old entries should be evicted (HashMap iteration order is not guaranteed)
+        let bundle1_exists = cache.get(&bundle1.id()).is_some();
+        let bundle2_exists = cache.get(&bundle2.id()).is_some();
+        assert!(bundle1_exists != bundle2_exists); // Exactly one should exist
+        assert_eq!(cache.stats().size, 2); // Cache should be at max size
+
+        // Test clear
+        cache.clear();
+        assert_eq!(cache.stats().size, 0);
     }
 }

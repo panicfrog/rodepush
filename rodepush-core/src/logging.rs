@@ -1,12 +1,12 @@
+use serde::{Deserialize, Serialize};
+use std::io;
 use tracing::Level;
 use tracing_subscriber::{
+    EnvFilter,
     fmt::{self, format::FmtSpan},
     layer::SubscriberExt,
     util::SubscriberInitExt,
-    EnvFilter,
 };
-use std::io;
-use serde::{Deserialize, Serialize};
 
 /// Logging configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -53,7 +53,7 @@ impl Default for LogConfig {
 /// Initialize logging with the given configuration
 pub fn init_logging(config: &LogConfig) -> crate::Result<()> {
     let _level_filter = parse_log_level(&config.level)?;
-    
+
     // Create environment filter with the specified level
     let env_filter = EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| EnvFilter::new(&config.level))
@@ -75,9 +75,10 @@ pub fn init_logging(config: &LogConfig) -> crate::Result<()> {
                     FmtSpan::NONE
                 })
                 .with_writer(io::stderr);
-                
-            registry.with(layer).try_init()
-                .map_err(|e| crate::RodePushError::config(format!("Failed to initialize logging: {}", e)))?;
+
+            registry.with(layer).try_init().map_err(|e| {
+                crate::RodePushError::config(format!("Failed to initialize logging: {}", e))
+            })?;
         }
         LogFormat::Json => {
             let layer = fmt::layer()
@@ -92,9 +93,10 @@ pub fn init_logging(config: &LogConfig) -> crate::Result<()> {
                     FmtSpan::NONE
                 })
                 .with_writer(io::stderr);
-                
-            registry.with(layer).try_init()
-                .map_err(|e| crate::RodePushError::config(format!("Failed to initialize logging: {}", e)))?;
+
+            registry.with(layer).try_init().map_err(|e| {
+                crate::RodePushError::config(format!("Failed to initialize logging: {}", e))
+            })?;
         }
         LogFormat::Compact => {
             let layer = fmt::layer()
@@ -104,9 +106,10 @@ pub fn init_logging(config: &LogConfig) -> crate::Result<()> {
                 .with_file(config.include_location)
                 .with_line_number(config.include_location)
                 .with_writer(io::stderr);
-                
-            registry.with(layer).try_init()
-                .map_err(|e| crate::RodePushError::config(format!("Failed to initialize logging: {}", e)))?;
+
+            registry.with(layer).try_init().map_err(|e| {
+                crate::RodePushError::config(format!("Failed to initialize logging: {}", e))
+            })?;
         }
     }
 
@@ -130,7 +133,7 @@ fn parse_log_level(level: &str) -> crate::Result<Level> {
         _ => Err(crate::RodePushError::validation(format!(
             "Invalid log level: {}. Valid levels are: trace, debug, info, warn, error",
             level
-        )))
+        ))),
     }
 }
 
@@ -263,6 +266,75 @@ impl LogContext {
     pub fn debug(&self, message: &str) {
         let _guard = self.span().entered();
         tracing::debug!("{}", message);
+    }
+
+    /// Log bundle operation with structured data
+    pub fn log_bundle_operation(
+        &self,
+        operation: &str,
+        bundle_id: &crate::BundleId,
+        metadata: &crate::BundleMetadata,
+    ) {
+        let _guard = self.span().entered();
+        tracing::info!(
+            correlation_id = %self.correlation_id,
+            operation = operation,
+            bundle_id = %bundle_id,
+            version = %metadata.version,
+            platform = ?metadata.platform,
+            size_bytes = metadata.size_bytes,
+            chunk_count = metadata.chunks.len(),
+            "Bundle operation completed"
+        );
+    }
+
+    /// Log asset operation with structured data
+    pub fn log_asset_operation(
+        &self,
+        operation: &str,
+        collection_id: &crate::AssetCollectionId,
+        asset_count: usize,
+        total_size: u64,
+    ) {
+        let _guard = self.span().entered();
+        tracing::info!(
+            correlation_id = %self.correlation_id,
+            operation = operation,
+            collection_id = %collection_id.0,
+            asset_count = asset_count,
+            total_size = total_size,
+            "Asset operation completed"
+        );
+    }
+
+    /// Log performance metrics
+    pub fn log_performance(
+        &self,
+        operation: &str,
+        duration_ms: u64,
+        _additional_fields: &[(&str, &str)],
+    ) {
+        let _guard = self.span().entered();
+
+        tracing::info!(
+            correlation_id = %self.correlation_id,
+            operation = operation,
+            duration_ms = duration_ms,
+            "Performance metric"
+        );
+    }
+
+    /// Log error with context
+    pub fn log_error(&self, error: &crate::RodePushError, context: &str) {
+        let _guard = self.span().entered();
+        tracing::error!(
+            correlation_id = %self.correlation_id,
+            operation = %self.operation,
+            component = %self.component,
+            error = %error,
+            context = context,
+            "Error occurred"
+        );
     }
 }
 

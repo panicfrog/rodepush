@@ -1,0 +1,13 @@
+# RodePush CLI Configuration File
+
+[server]
+url = "https://api.rodepush.com"
+timeout_seconds = 30
+
+[build]
+platform = "both"
+entry_file = "index.js"
+output_dir = "./build"
+
+[auth]
+api_key_file = "~/.rodepush/api_key"

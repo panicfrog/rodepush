@@ -47,6 +47,7 @@ Central library providing shared functionality for bundle operations, compressio
 - `crypto::Hasher` - Cryptographic operations
 - `storage::Storage` - Abstracted storage interface
 - `serialization::Metadata` - Bundle metadata handling
+- `assets::AssetCollection` - Asset management for React Native resources
 
 #### 2. rodepush-cli
 Command-line application for developers to build, package, and upload bundles.

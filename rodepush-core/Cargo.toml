@@ -33,10 +33,18 @@ blake3.workspace = true
 zstd.workspace = true
 flate2.workspace = true
 brotli.workspace = true
+tar = "0.4"
 
 # Logging
 tracing.workspace = true
 tracing-subscriber.workspace = true
+
+# File system utilities
+walkdir = "2.3"
+mime_guess = "2.0"
+
+# Async traits
+async-trait = "0.1"
 
 hex = "0.4"
 subtle = "2.5"
