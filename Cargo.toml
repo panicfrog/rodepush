@@ -14,58 +14,57 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/rodepush/rodepush"
 
 [workspace.dependencies]
-version = "2.4"
 # Async runtime and utilities
-tokio = { version = "1.0", features = ["full"] }
-futures = "0.3"
+tokio = { version = "^1.46.1", features = ["full"] }
+futures = "^0.3.30"
 
 # Serialization
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-toml = "0.8"
+serde = { version = "^1.0.219", features = ["derive"] }
+serde_json = "^1.0.141"
+toml = "^0.9.2"
 
 # Error handling
-thiserror = "1.0"
-anyhow = "1.0"
+thiserror = "^1.0.69"
+anyhow = "^1.0.98"
 
 # UUID and time
-uuid = { version = "1.0", features = ["v4", "serde"] }
-chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "^1.8.0", features = ["v4", "serde"] }
+chrono = { version = "^0.4.41", features = ["serde"] }
 
 # Crypto and hashing
-sha2 = "0.10"
-blake3 = "1.5"
-hex = "0.4"
-subtle = "2.4"
+sha2 = "^0.10.9"
+blake3 = "^1.8.2"
+hex = "^0.4.3"
+subtle = "^2.6.1"
 
 # Compression
-zstd = "0.13"
-flate2 = "1.0"
-brotli = "3.3"
+zstd = "^0.13.1"
+flate2 = "^1.1.2"
+brotli = "^3.4.0"
 
 # Logging and tracing
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
-tracing-futures = "0.2"
+tracing = "^0.1.41"
+tracing-subscriber = { version = "^0.3.19", features = ["env-filter", "json"] }
+tracing-futures = "^0.2.5"
 
 # CLI (for rodepush-cli)
-clap = { version = "4.0", features = ["derive"] }
-indicatif = "0.17"
+clap = { version = "^4.5.41", features = ["derive"] }
+indicatif = "^0.17.11"
 
 # HTTP server (for rodepush-server)
-axum = "0.7"
-tower = "0.4"
-tower-http = { version = "0.5", features = ["trace", "cors"] }
+axum = "^0.8.4"
+tower = "^0.4.13"
+tower-http = { version = "^0.5.2", features = ["trace", "cors"] }
 
 # HTTP client (for rodepush-cli)
-reqwest = { version = "0.11", features = ["json", "stream"] }
+reqwest = { version = "^0.12.22", features = ["json", "stream"] }
 
 # Database (for rodepush-server)
-sqlx = { version = "0.7", features = ["postgres", "uuid", "chrono", "runtime-tokio-rustls"] }
+sqlx = { version = "^0.8.6", features = ["postgres", "uuid", "chrono", "runtime-tokio-rustls"] }
 
 # Cache (for rodepush-server)
-redis = { version = "0.24", features = ["tokio-comp"] }
+redis = { version = "^0.24.0", features = ["tokio-comp"] }
 
 # Testing
-tempfile = "3.0"
-mockall = "0.12"
+tempfile = "^3.20.0"
+mockall = "^0.13.1"

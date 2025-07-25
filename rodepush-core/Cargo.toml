@@ -33,25 +33,25 @@ blake3.workspace = true
 zstd.workspace = true
 flate2.workspace = true
 brotli.workspace = true
-tar = "0.4"
+tar = "^0.4.44"
 
 # Logging
 tracing.workspace = true
 tracing-subscriber.workspace = true
 
 # File system utilities
-walkdir = "2.3"
-mime_guess = "2.0"
+walkdir = "^2.5.0"
+mime_guess = "^2.0.5"
 
 # Async traits
-async-trait = "0.1"
+async-trait = "^0.1.88"
 
-hex = "0.4"
-subtle = "2.5"
+hex.workspace = true
+subtle.workspace = true
 tempfile.workspace = true
 mockall.workspace = true
-tokio-test = "0.4"
+tokio-test = "^0.4.4"
 
 [dependencies.similar]
-version = "2.2"
+version = "^2.7.0"
 features = ["inline"]
