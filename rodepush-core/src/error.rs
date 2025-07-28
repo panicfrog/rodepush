@@ -304,6 +304,13 @@ impl BundleError {
             reason: reason.into(),
         }
     }
+
+    /// Create a build failed error
+    pub fn build_failed(message: impl Into<String>) -> Self {
+        Self::InvalidFormat {
+            reason: format!("Build failed: {}", message.into()),
+        }
+    }
 }
 
 impl NetworkError {
@@ -380,6 +387,14 @@ impl From<serde_json::Error> for BundleError {
     fn from(error: serde_json::Error) -> Self {
         Self::MetadataParseError {
             reason: error.to_string(),
+        }
+    }
+}
+
+impl From<serde_json::Error> for RodePushError {
+    fn from(error: serde_json::Error) -> Self {
+        RodePushError::Internal {
+            message: format!("Serialization error: {}", error),
         }
     }
 }

@@ -9,6 +9,13 @@ use serde::{Deserialize, Serialize};
 use tower_http::trace::TraceLayer;
 use tracing::{error, info};
 
+mod database;
+
+use database::{
+    Application, ApplicationId, DatabaseManager, Deployment, DeploymentId, DiffPackage,
+    DiffPackageId,
+};
+
 async fn hello() -> &'static str {
     let context = LogContext::new("hello_handler", "rodepush-server");
     context.info("Hello endpoint accessed");

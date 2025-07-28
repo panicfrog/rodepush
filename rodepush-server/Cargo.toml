@@ -39,6 +39,9 @@ toml.workspace = true
 anyhow.workspace = true
 thiserror.workspace = true
 
+# Async traits
+async-trait.workspace = true
+
 # UUID and time
 uuid.workspace = true
 chrono.workspace = true
@@ -50,3 +53,4 @@ tracing-subscriber.workspace = true
 [dev-dependencies]
 tempfile.workspace = true
 tokio-test = "^0.4.4"
+serial_test = "^3.2.0"
